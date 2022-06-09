@@ -2,6 +2,8 @@ import requests
 from bs4 import BeautifulSoup
 import pandas as pd
 
+
+url = 'https://mike.larsson.uk.com/en/category/10320000000/?sr=60'
 payload = {
     'mcustno': '3036','mpassword': '175193',
     'smbtn': 'Login','lang': 'en','faction': 'login',
@@ -18,14 +20,54 @@ headers = {
 session = requests.Session()
 
 connect = session.post('https://mike.larsson.uk.com/en/', headers=headers, data=payload)
-response = session.get("https://mike.larsson.uk.com/en/category/10320000000/?sr=60")
 
-soup = BeautifulSoup(response.content, 'lxml')
-# print(soup)
+def scrapeDescription(descriptionURL):
+    descriptionDict = {}
+    fitsToDict = {}
+    fitsToList = []
+    descriptionResponse = session.get(descriptionURL)
+    soup = BeautifulSoup(descriptionResponse.content, 'lxml')
+    mm_details = soup.select('div.p_details')[0].select('div')[0].select('div.mm_details')
+    descriptionDict['jm_no'] = mm_details[0].select('div.mm_drow')[0].find('div',class_='mm_right').text
+    descriptionDict['quantity'] = int(mm_details[0].select('div.mm_drow')[3].find('div',class_='mm_right').text)
+    descriptionDict['retail_price'] = mm_details[0].select('div.mm_drow')[4].find('div',class_='mm_right').text[2:6]
+    descriptionDict['purchase_price'] = mm_details[0].select('div.mm_drow')[7].find('div',class_='mm_right').text[2:]
+    # DATA = p_details[0].select('div.mm_drow')[1].find('div',class_='mm_right').text[2:]
+    description_list = soup.select('div.p_details')[0].select('div.tab_container')[0].select('div.goog_trans_cont')[0].select('div.goog_trans_res')[0].select('p')[3:]
+    descriptionDict['description'] = ' '.join([each_description.text[1:-1].replace(u'\xa0','') for each_description in description_list])
+    tdaDetails = soup.select('div.p_details')[0].select('div.tab_container')[1].select('div.tab_content')[0].select('div.related_articles')[0].select('div.list')[0].select('tr.tda')
+    tdbDetails = soup.select('div.p_details')[0].select('div.tab_container')[1].select('div.tab_content')[0].select('div.related_articles')[0].select('div.list')[0].select('tr.tdb')
+    for eachTda in range(len(tdaDetails)):
+       fitsToDict['Model'] = tdaDetails[eachTda].select('td')[0].select('a')[0].text
+       fitsToDict['Code'] = tdaDetails[eachTda].select('td')[21].select('a')[0].text.strip()
+       fitsToDict['typ'] = tdaDetails[eachTda].select('td')[22].select('a')[0].text.strip()
+       fitsToDict['from'] = tdaDetails[eachTda].select('td')[23].select('a')[0].text.strip()
+       fitsToDict['to'] = tdaDetails[eachTda].select('td')[24].select('a')[0].text.strip()
+       fitsToDict['Year'] = int(tdaDetails[eachTda].select('td')[25].select('a')[0].text.strip())
+       fitsToDict['Cylinder'] = int(tdaDetails[eachTda].select('td')[26].select('a')[0].text.strip())
+       fitsToDict['Performance'] = tdaDetails[eachTda].select('td')[27].select('a')[0].text.strip()
+       fitsToList.append(fitsToDict.copy())
+    for eachTdb in range(len(tdbDetails)):
+       fitsToDict['Model'] = tdbDetails[eachTdb].select('td')[0].select('a')[0].text
+       fitsToDict['Code'] = tdbDetails[eachTdb].select('td')[21].select('a')[0].text.strip()
+       fitsToDict['typ'] = tdbDetails[eachTdb].select('td')[22].select('a')[0].text.strip()
+       fitsToDict['from'] = tdbDetails[eachTdb].select('td')[23].select('a')[0].text.strip()
+       fitsToDict['to'] = tdbDetails[eachTdb].select('td')[24].select('a')[0].text.strip()
+       fitsToDict['Year'] = int(tdbDetails[eachTdb].select('td')[25].select('a')[0].text.strip())
+       fitsToDict['Cylinder'] = int(tdbDetails[eachTdb].select('td')[26].select('a')[0].text.strip())
+       fitsToDict['Performance'] = tdbDetails[eachTdb].select('td')[27].select('a')[0].text.strip()
+       fitsToList.append(fitsToDict.copy())
+    
+    descriptionDict['fitment'] = fitsToList
+    return descriptionDict
 
 
 def scrapeData():
+    response = session.get(url)
     # soup = BeautifulSoup(data.content, 'html.parser')
+    soup = BeautifulSoup(response.content, 'lxml')
+    # print(soup)
+
     jm_no_list,title_list,brand_list,to_fit_make_list,sub_type_list,to_fit_model_list,intended_use_list,ean_list,quantity_list,condition_list,purchase_price_list,retail_price_list,image_list,image2_list,description_list,fitment_list = ([] for i in range(16))
 
     breadcrumpList = soup.select('div.breadcrump-liste')
@@ -36,11 +78,11 @@ def scrapeData():
         
     gallery_element = soup.select('div.gal_elem')
     # print(gallery_element)
-    for eachElement in gallery_element:
+    for id,eachElement in enumerate(gallery_element):
         gal_content = eachElement.find('div', class_='gal_content')
         gal_basket = eachElement.find('div', class_='gal_basket')
-        jm_no = gal_content.find('div', class_='gal_artnr').text
-        jm_no_list.append(jm_no[8:].replace(u'\xa0',''))
+        # jm_no = gal_content.find('div', class_='gal_artnr').text
+        # jm_no_list.append(jm_no[8:].replace(u'\xa0',''))
         title_list.append((eachElement.h3.a).text)
         brand = gal_content.find('div', class_='gal_text').text
         brand_list.append(brand.replace(u'\xa0','').strip())
@@ -49,20 +91,26 @@ def scrapeData():
         to_fit_model_list.append('')
         intended_use_list.append(middle_pde)
         ean_list.append('')
-        quantity_list.append(1)
-        condition_list.append('New')
-        table = gal_basket.find('table')
-        purchase_price = table.find('tr', class_='tda').select('td')[0].find('table', class_='no_space').select('tr')[0].select('td.gal_price_color')[1].text
-        purchase_price_list.append(purchase_price[2:])
-        retail_price = table.find('tr', class_='tda').select('td')[0].find('table', class_='no_space').select('tr')[1].select('td.larsson_size')[0].text
-        retail_price_list.append(retail_price[2:])
+        condition_list.append('')
+        # table = gal_basket.find('table')
+        # purchase_price = table.find('tr', class_='tda').select('td')[0].find('table', class_='no_space').select('tr')[0].select('td.gal_price_color')[1].text
+        # purchase_price_list.append(purchase_price[2:])
+        # retail_price = table.find('tr', class_='tda').select('td')[0].find('table', class_='no_space').select('tr')[1].select('td.larsson_size')[0].text
+        # retail_price_list.append(retail_price[2:])
         gal_image = gal_content.find('div', class_='gal_image').select('a')[0].select('img')
         image = gal_image[0]['src'].replace('//','https://')
         image_list.append(image)
         image2_list.append('')
-        description_list.append('')
-        fitment_list.append('')
-
+        descriptionURL = str(eachElement.h3.a['href'])
+        scrapeDescriptionData = scrapeDescription(descriptionURL)
+        quantity_list.append(scrapeDescriptionData['quantity'])
+        jm_no_list.append(scrapeDescriptionData['jm_no'])
+        retail_price_list.append(scrapeDescriptionData['retail_price'])
+        purchase_price_list.append(scrapeDescriptionData['purchase_price'])
+        description_list.append(scrapeDescriptionData['description'])
+        fitment_list.append(scrapeDescriptionData['fitment'])
+        print("[%-30s] %d%%" % ('='*id, 3.3*id))
+    
     scrapingData = {
         'JM-No.': jm_no_list, 'Title': title_list, 'Brand': brand_list, 'To Fit Make': to_fit_make_list, 'Sub Type': sub_type_list,
         'To Fit Model': to_fit_model_list, 'Intended Use': intended_use_list, 'EAN': ean_list, 'Quantity': quantity_list, 
@@ -75,6 +123,6 @@ def scrapeData():
     print("Data Scraped Successfully")
     # data.to_excel("result.xlsx")
     data.to_csv('result.csv',index=False)
-
+    
 if __name__=='__main__':
     scrapeData()
