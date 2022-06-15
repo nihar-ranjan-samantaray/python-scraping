@@ -21,57 +21,7 @@ session = requests.Session()
 connect = session.post('https://mike.larsson.uk.com/en/', headers=headers, data=payload)
 
 
-def scrapeFitToList(descriptionURL, fitsToDF, ovid, jm_no):
-    fitsToDict = {}
-
-    fit_to_headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:101.0) Gecko/20100101 Firefox/101.0','Accept': '*/*','Accept-Language': 'en-US,en;q=0.5',
-        'Connection': 'keep-alive','Referer': f'{descriptionURL}','Sec-Fetch-Dest': 'empty',
-        'Sec-Fetch-Mode': 'cors','Sec-Fetch-Site': 'same-origin',
-    }
-
-    fit_to_params = {
-        'request': 'getFList','shopname': '','ovid': f'{ovid}','sa_id': '','lang': 'en','vsr': 'all','ffilter': '',
-    }
-
-    fit_to_response = session.get('https://mike.larsson.uk.com/ajax.php', params=fit_to_params, headers=fit_to_headers)
-
-    fit_to_soup = BeautifulSoup(fit_to_response.content, 'lxml')
-    # print(fit_to_soup)
-    tdaDetails = fit_to_soup.select('div.related_articles')[0].select('div.list')[0].select('tr.tda')
-    tdbDetails = fit_to_soup.select('div.related_articles')[0].select('div.list')[0].select('tr.tdb')
-    # print(len(tdaDetails))
-    # print(len(tdbDetails))
-    for eachTda in range(len(tdaDetails)):
-        fitsToDict['JM-No.'] = jm_no
-        makeModel = tdaDetails[eachTda].select('td')[0].select('a')[0].text
-        fitsToDict['Make'] = ''.join(makeModel.split()[:1])
-        fitsToDict['Model'] = ' '.join(makeModel.split()[1:])
-        fitsToDict['Code'] = tdaDetails[eachTda].select('td')[21].select('a')[0].text.strip()
-        fitsToDict['typ'] = tdaDetails[eachTda].select('td')[22].select('a')[0].text.strip()
-        fitsToDict['from'] = tdaDetails[eachTda].select('td')[23].select('a')[0].text.strip()
-        fitsToDict['to'] = tdaDetails[eachTda].select('td')[24].select('a')[0].text.strip()
-        fitsToDict['Year'] = tdaDetails[eachTda].select('td')[25].select('a')[0].text.strip()
-        fitsToDict['Cylinder'] = tdaDetails[eachTda].select('td')[26].select('a')[0].text.strip()
-        fitsToDict['Performance'] = tdaDetails[eachTda].select('td')[27].select('a')[0].text.strip()
-        fitsToDF = pd.concat([fitsToDF, pd.DataFrame(fitsToDict, index=[0])])
-    for eachTdb in range(len(tdbDetails)):
-        fitsToDict['JM-No.'] = jm_no
-        makeModel = tdbDetails[eachTdb].select('td')[0].select('a')[0].text
-        fitsToDict['Make'] = ''.join(makeModel.split()[:1])
-        fitsToDict['Model'] = ' '.join(makeModel.split()[1:])
-        fitsToDict['Code'] = tdbDetails[eachTdb].select('td')[21].select('a')[0].text.strip()
-        fitsToDict['typ'] = tdbDetails[eachTdb].select('td')[22].select('a')[0].text.strip()
-        fitsToDict['from'] = tdbDetails[eachTdb].select('td')[23].select('a')[0].text.strip()
-        fitsToDict['to'] = tdbDetails[eachTdb].select('td')[24].select('a')[0].text.strip()
-        fitsToDict['Year'] = tdbDetails[eachTdb].select('td')[25].select('a')[0].text.strip()
-        fitsToDict['Cylinder'] = tdbDetails[eachTdb].select('td')[26].select('a')[0].text.strip()
-        fitsToDict['Performance'] = tdbDetails[eachTdb].select('td')[27].select('a')[0].text.strip()
-        fitsToDF = pd.concat([fitsToDF, pd.DataFrame(fitsToDict, index=[0])])
-
-    return fitsToDF
-
-def scrapeDescription(descriptionURL, fitsToDF, ovid):
+def scrapeDescription(descriptionURL, fitsToDF):
     descriptionDict = {}
     fitsToDict = {}
     descriptionResponse = session.get(descriptionURL)
@@ -93,16 +43,49 @@ def scrapeDescription(descriptionURL, fitsToDF, ovid):
     else:
         print("Description Blank")
         descriptionDict['description'] = ''
-
+    
     tab_count = len(soup.select('div.p_details')[0].select('div.tab_container'))
     tabNameList = []
     for eachTab in range(tab_count):
         tabNameList.append(soup.select('div.p_details')[0].select('div.tab_container')[eachTab].h4.text)
     if 'Fits to:' in tabNameList:
-        fitsToDF = scrapeFitToList(descriptionURL, fitsToDF, ovid, descriptionDict['jm_no'])
-    
+        tabIndex = tabNameList.index('Fits to:')
+        tdaDetails = soup.select('div.p_details')[0].select('div.tab_container')[tabIndex].select('div.tab_content')[0].select('div.related_articles')[0].select('div.list')[0].select('tr.tda')
+        tdbDetails = soup.select('div.p_details')[0].select('div.tab_container')[tabIndex].select('div.tab_content')[0].select('div.related_articles')[0].select('div.list')[0].select('tr.tdb')
+    else:
+        print('Fits To Blank')
+        tdaDetails = []
+        tdbDetails = []
+    for eachTda in range(len(tdaDetails)):
+        fitsToDict['JM-No.'] = descriptionDict['jm_no']
+        makeModel = tdaDetails[eachTda].select('td')[0].select('a')[0].text
+        fitsToDict['Make'] = ''.join(makeModel.split()[:1])
+        fitsToDict['Model'] = ' '.join(makeModel.split()[1:])
+        fitsToDict['Code'] = tdaDetails[eachTda].select('td')[21].select('a')[0].text.strip()
+        fitsToDict['typ'] = tdaDetails[eachTda].select('td')[22].select('a')[0].text.strip()
+        fitsToDict['from'] = tdaDetails[eachTda].select('td')[23].select('a')[0].text.strip()
+        fitsToDict['to'] = tdaDetails[eachTda].select('td')[24].select('a')[0].text.strip()
+        fitsToDict['Year'] = tdaDetails[eachTda].select('td')[25].select('a')[0].text.strip()
+        fitsToDict['Cylinder'] = tdaDetails[eachTda].select('td')[26].select('a')[0].text.strip()
+        fitsToDict['Performance'] = tdaDetails[eachTda].select('td')[27].select('a')[0].text.strip()
+        fitsToDF = pd.concat([fitsToDF, pd.DataFrame(fitsToDict, index=[0])])
+    for eachTdb in range(len(tdbDetails)):
+        fitsToDict['JM-No.'] = descriptionDict['jm_no']
+        makeModel = tdbDetails[eachTdb].select('td')[0].select('a')[0].text
+        fitsToDict['Make'] = ''.join(makeModel.split()[:1])
+        fitsToDict['Model'] = ' '.join(makeModel.split()[1:])
+        fitsToDict['Code'] = tdbDetails[eachTdb].select('td')[21].select('a')[0].text.strip()
+        fitsToDict['typ'] = tdbDetails[eachTdb].select('td')[22].select('a')[0].text.strip()
+        fitsToDict['from'] = tdbDetails[eachTdb].select('td')[23].select('a')[0].text.strip()
+        fitsToDict['to'] = tdbDetails[eachTdb].select('td')[24].select('a')[0].text.strip()
+        fitsToDict['Year'] = tdbDetails[eachTdb].select('td')[25].select('a')[0].text.strip()
+        fitsToDict['Cylinder'] = tdbDetails[eachTdb].select('td')[26].select('a')[0].text.strip()
+        fitsToDict['Performance'] = tdbDetails[eachTdb].select('td')[27].select('a')[0].text.strip()
+        fitsToDF = pd.concat([fitsToDF, pd.DataFrame(fitsToDict, index=[0])])
+    # print(fitsToDF)
     descriptionDict['fitsToDataFrame'] = fitsToDF
     return descriptionDict
+
 
 def scrapeData(url, category_count):
     jm_no_list,title_list,brand_list,to_fit_make_list,sub_type_list,to_fit_model_list,intended_use_list,ean_list,quantity_list,condition_list,purchase_price_list,retail_price_list,image_list,image2_list,description_list,fitment_list = ([] for i in range(16))
@@ -147,8 +130,7 @@ def scrapeData(url, category_count):
             # image2_list.append('')
 
             descriptionURL = str(eachElement.h3.a['href'])
-            ovid = descriptionURL.replace('https://mike.larsson.uk.com/en/category/','').split('/')[-2]
-            scrapeDescriptionData = scrapeDescription(descriptionURL, fitsToDF, ovid)
+            scrapeDescriptionData = scrapeDescription(descriptionURL, fitsToDF)
             fitsToDF = scrapeDescriptionData['fitsToDataFrame']
             quantity_list.append(scrapeDescriptionData['quantity'])
             jm_no_list.append(scrapeDescriptionData['jm_no'])
